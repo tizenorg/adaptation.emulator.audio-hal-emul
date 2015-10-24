@@ -188,9 +188,11 @@ typedef enum audio_volume {
     AUDIO_VOLUME_TYPE_CALL,             /**< Call volume type */
     AUDIO_VOLUME_TYPE_VOIP,             /**< VOIP volume type */
     AUDIO_VOLUME_TYPE_VOICE,            /**< Voice volume type */
-    AUDIO_VOLUME_TYPE_FIXED,            /**< Volume type for fixed acoustic level */
+    AUDIO_VOLUME_TYPE_FIXED,            /**< Fixed volume type */
     AUDIO_VOLUME_TYPE_MAX,              /**< Volume type count */
 } audio_volume_t;
+
+#define AUDIO_VOLUME_TYPE_VCONF_MAX AUDIO_VOLUME_TYPE_FIXED
 
 typedef enum audio_gain {
     AUDIO_GAIN_TYPE_DEFAULT,

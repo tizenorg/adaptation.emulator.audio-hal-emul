@@ -44,7 +44,7 @@ enum {
     STREAM_DEVICE_MAX,
 };
 
-static const char *g_volume_vconf[AUDIO_VOLUME_TYPE_MAX] = {
+static const char *g_volume_vconf[AUDIO_VOLUME_TYPE_VCONF_MAX] = {
     "file/private/sound/volume/system",         /* AUDIO_VOLUME_TYPE_SYSTEM */
     "file/private/sound/volume/notification",   /* AUDIO_VOLUME_TYPE_NOTIFICATION */
     "file/private/sound/volume/alarm",          /* AUDIO_VOLUME_TYPE_ALARM */
@@ -53,7 +53,6 @@ static const char *g_volume_vconf[AUDIO_VOLUME_TYPE_MAX] = {
     "file/private/sound/volume/call",           /* AUDIO_VOLUME_TYPE_CALL */
     "file/private/sound/volume/voip",           /* AUDIO_VOLUME_TYPE_VOIP */
     "file/private/sound/volume/voice",          /* AUDIO_VOLUME_TYPE_VOICE */
-    "file/private/sound/volume/fixed",          /* AUDIO_VOLUME_TYPE_FIXED */
 };
 
 static inline uint8_t __get_volume_dev_index(audio_mgr_t *am, uint32_t volume_type)
@@ -191,7 +190,7 @@ static void __dump_tb (audio_mgr_t *am)
     AUDIO_LOG_INFO("<<<<< volume table >>>>>");
 
 
-    for (vol_type_idx = 0; vol_type_idx < AUDIO_VOLUME_TYPE_MAX; vol_type_idx++) {
+    for (vol_type_idx = 0; vol_type_idx < AUDIO_VOLUME_TYPE_VCONF_MAX; vol_type_idx++) {
         const char *vol_type_str = __get_volume_type_string_by_idx(vol_type_idx);
 
         dump_str_ptr = &dump_str[0];
@@ -257,7 +256,7 @@ static audio_return_t __load_volume_gain_table_from_ini (audio_mgr_t *am)
     }
 
     /* Load volume table */
-    for (vol_type_idx = 0; vol_type_idx < AUDIO_VOLUME_TYPE_MAX; vol_type_idx++) {
+    for (vol_type_idx = 0; vol_type_idx < AUDIO_VOLUME_TYPE_VCONF_MAX; vol_type_idx++) {
         const char *vol_type_str = __get_volume_type_string_by_idx(vol_type_idx);
 
         volume_gain_table->volume_level_max[vol_type_idx] = 0;
@@ -318,15 +317,15 @@ audio_return_t _audio_stream_init (audio_mgr_t *am)
 {
     int i, j, val;
     audio_return_t audio_ret = AUDIO_RET_OK;
-    int init_value[AUDIO_VOLUME_TYPE_MAX] = { 9, 11, 7, 11, 7, 4, 4, 7, 4, 0 };
+    int init_value[AUDIO_VOLUME_TYPE_VCONF_MAX] = { 9, 11, 7, 11, 7, 4, 4, 7 };
 
     AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
 
-    for (i = 0; i < AUDIO_VOLUME_TYPE_MAX; i++) {
+    for (i = 0; i < AUDIO_VOLUME_TYPE_VCONF_MAX; i++) {
         am->stream.volume_level[i] = init_value[i];
     }
 
-    for (i = 0; i < AUDIO_VOLUME_TYPE_MAX; i++) {
+    for (i = 0; i < AUDIO_VOLUME_TYPE_VCONF_MAX; i++) {
         /* Get volume value string from VCONF */
         if(vconf_get_int(g_volume_vconf[i], &val) < 0) {
             AUDIO_LOG_ERROR("vconf_get_int(%s) failed", g_volume_vconf[i]);
@@ -374,9 +373,11 @@ audio_return_t audio_get_volume_level_max (void *userdata, uint32_t volume_type,
 
     /* Get max volume level by device & type */
     volume_gain_table = am->stream.volume_gain_table;
-    *level = volume_gain_table->volume_level_max[volume_type];
 
-    AUDIO_LOG_DEBUG("get_volume_level_max:%s=>%d", __get_volume_type_string_by_idx(volume_type), *level);
+    if (volume_type < AUDIO_VOLUME_TYPE_VCONF_MAX) {
+        *level = volume_gain_table->volume_level_max[volume_type];
+        AUDIO_LOG_DEBUG("get_volume_level_max:%s=>%d", __get_volume_type_string_by_idx(volume_type), *level);
+    }
 
     return AUDIO_RET_OK;
 }
@@ -387,7 +388,8 @@ audio_return_t audio_get_volume_level (void *userdata, uint32_t volume_type, uin
 
     AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
 
-    *level = am->stream.volume_level[volume_type];
+    if (volume_type < AUDIO_VOLUME_TYPE_VCONF_MAX)
+        *level = am->stream.volume_level[volume_type];
 
     return AUDIO_RET_OK;
 }
@@ -404,11 +406,14 @@ audio_return_t audio_get_volume_value (void *userdata, audio_info_t *info, uint3
         __dump_info(&dump_str[0], info);
         /* Get basic volume by device & type & level */
         volume_gain_table = am->stream.volume_gain_table;
-        if (volume_gain_table->volume_level_max[volume_type] < level)
-            *value = VOLUME_VALUE_MAX;
-        else
-            *value = volume_gain_table->volume[volume_type][level];
-        *value *= volume_gain_table->gain[info->stream.gain_type];
+        if (volume_type < AUDIO_VOLUME_TYPE_VCONF_MAX) {
+            if (volume_gain_table->volume_level_max[volume_type] < level)
+                *value = VOLUME_VALUE_MAX;
+            else
+                *value = volume_gain_table->volume[volume_type][level];
+            *value *= volume_gain_table->gain[info->stream.gain_type];
+        } else if (volume_type == AUDIO_VOLUME_TYPE_FIXED)
+            *value = 1.0 * volume_gain_table->gain[info->stream.gain_type];
 
         AUDIO_LOG_DEBUG("get_volume_value:%d(%s)=>%f %s", level, __get_volume_type_string_by_idx(volume_type), *value, &dump_str[0]);
     }
@@ -423,7 +428,7 @@ audio_return_t audio_set_volume_level (void *userdata, audio_info_t *info, uint3
 
     AUDIO_RETURN_VAL_IF_FAIL(am, AUDIO_ERR_PARAMETER);
 
-    if (info == NULL) {
+    if (info == NULL && volume_type < AUDIO_VOLUME_TYPE_VCONF_MAX) {
 
         /* Update volume level */
         am->stream.volume_level[volume_type] = level;

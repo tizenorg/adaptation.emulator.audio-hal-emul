@@ -7,6 +7,8 @@ AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIR([m4])
 
 # Checks for programs.
+m4_pattern_allow([AM_PROG_AR])
+AM_PROG_AR
 AC_PROG_CC
 AM_PROG_CC_C_O
 AC_PROG_CXX
